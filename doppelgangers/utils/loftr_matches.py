@@ -7,10 +7,11 @@ from PIL import Image, ImageOps
 
 from ..third_party.loftr import LoFTR, default_cfg
 
+
 def get_resized_wh(w, h, resize=None):
     if resize is not None:  # resize the longer edge
         scale = resize / max(h, w)
-        w_new, h_new = int(round(w*scale)), int(round(h*scale))
+        w_new, h_new = int(round(w * scale)), int(round(h * scale))
     else:
         w_new, h_new = w, h
     return w_new, h_new
@@ -29,8 +30,7 @@ def get_divisible_wh(w, h, df=None):
 
 
 def read_image(img_pth, img_size, df, padding):
-    if str(img_pth).endswith('gif'):
-        
+    if str(img_pth).endswith("gif"):
         pil_image = ImageOps.grayscale(Image.open(str(img_pth)))
         img_raw = np.array(pil_image)
     else:
@@ -41,24 +41,26 @@ def read_image(img_pth, img_size, df, padding):
     w_new, h_new = get_divisible_wh(w_new, h_new, df)
 
     if padding:  # padding
-        pad_to = max(h_new, w_new)    
-        mask = np.zeros((1,pad_to, pad_to), dtype=bool)
-        mask[:,:h_new,:w_new] = True
-        mask = mask[:,::8,::8]
-    
+        pad_to = max(h_new, w_new)
+        mask = np.zeros((1, pad_to, pad_to), dtype=bool)
+        mask[:, :h_new, :w_new] = True
+        mask = mask[:, ::8, ::8]
+
     image = cv2.resize(img_raw, (w_new, h_new))
-    pad_image = np.zeros((1,1, pad_to, pad_to), dtype=np.float32)
-    pad_image[0,0,:h_new,:w_new]=image/255.
+    pad_image = np.zeros((1, 1, pad_to, pad_to), dtype=np.float32)
+    pad_image[0, 0, :h_new, :w_new] = image / 255.0
 
     return pad_image, mask
 
 
-def save_loftr_matches(data_path, pair_path, output_path, model_weight_path="weights/outdoor_ds.ckpt"):
+def save_loftr_matches(
+    data_path, pair_path, output_path, model_weight_path="/cache/outdoor_ds.ckpt"
+):
     # The default config uses dual-softmax.
     # The outdoor and indoor models share the same config.
     # You can change the default values like thr and coarse_match_type.
     matcher = LoFTR(config=default_cfg)
-    matcher.load_state_dict(torch.load(model_weight_path)['state_dict'])
+    matcher.load_state_dict(torch.load(model_weight_path)["state_dict"])
     matcher = matcher.eval().cuda()
 
     pairs_info = np.load(pair_path, allow_pickle=True)
@@ -67,7 +69,7 @@ def save_loftr_matches(data_path, pair_path, output_path, model_weight_path="wei
     padding = True
 
     for idx in tqdm.tqdm(range(pairs_info.shape[0])):
-        output_dir = osp.join(output_path, f'loftr_match/{idx}.npy')
+        output_dir = osp.join(output_path, f"loftr_match/{idx}.npy")
         if osp.exists(output_dir):
             continue
         name0, name1, _, _, _ = pairs_info[idx]
@@ -75,20 +77,18 @@ def save_loftr_matches(data_path, pair_path, output_path, model_weight_path="wei
         img0_pth = osp.join(data_path, name0)
         img1_pth = osp.join(data_path, name1)
         img0_raw, mask0 = read_image(img0_pth, img_size, df, padding)
-        img1_raw, mask1 = read_image(img1_pth, img_size, df, padding)        
+        img1_raw, mask1 = read_image(img1_pth, img_size, df, padding)
         img0 = torch.from_numpy(img0_raw).cuda()
         img1 = torch.from_numpy(img1_raw).cuda()
         mask0 = torch.from_numpy(mask0).cuda()
         mask1 = torch.from_numpy(mask1).cuda()
-        batch = {'image0': img0, 'image1': img1, 'mask0': mask0, 'mask1':mask1}
+        batch = {"image0": img0, "image1": img1, "mask0": mask0, "mask1": mask1}
 
         # Inference with LoFTR and get prediction
         with torch.no_grad():
             matcher(batch)
-            mkpts0 = batch['mkpts0_f'].cpu().numpy()
-            mkpts1 = batch['mkpts1_f'].cpu().numpy()
-            mconf = batch['mconf'].cpu().numpy()
+            mkpts0 = batch["mkpts0_f"].cpu().numpy()
+            mkpts1 = batch["mkpts1_f"].cpu().numpy()
+            mconf = batch["mconf"].cpu().numpy()
 
             np.save(output_dir, {"kpt0": mkpts0, "kpt1": mkpts1, "conf": mconf})
-
-

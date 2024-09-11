@@ -76,7 +76,7 @@ def get_args():
     # Resume:
     parser.add_argument(
         "--pretrained",
-        default="weights/doppelgangers_classifier_loftr.pt",
+        default="/cache/doppelgangers_classifier_loftr.pt",
         type=str,
         help="Pretrained cehckpoint",
     )
@@ -114,39 +114,6 @@ def save_update_config(cfg, args):
 
     with open(config_file, "w") as f:
         yaml.dump(example_config, f)
-
-
-def colmap_runner(args):
-    if args.matching_type == "vocab_tree_matcher":
-        # efficient for large-scale scenes
-        vocab_tree_path = "weights/vocab_tree_flickr100K_words256K.bin"
-        if not os.path.exists(vocab_tree_path):
-            os.system(
-                "wget https://demuc.de/colmap/vocab_tree_flickr100K_words256K.bin"
-            )
-            os.system("mv vocab_tree_flickr100K_words256K.bin weights/")
-
-    # feature extraction
-    command = [
-        args.colmap_exe_command,
-        "feature_extractor",
-        "--image_path",
-        args.input_image_path,
-        "--database_path",
-        args.database_path,
-    ]
-    os.system(" ".join(command))
-
-    # feature matching
-    command = [
-        args.colmap_exe_command,
-        args.matching_type,
-        "--database_path",
-        args.database_path,
-    ]
-    if args.matching_type == "vocab_tree_matcher":
-        command += ["--VocabTreeMatching.vocab_tree_path", vocab_tree_path]
-    os.system(" ".join(command))
 
 
 def doppelgangers_classifier(gpu, ngpus_per_node, cfg, args):
@@ -235,7 +202,6 @@ def main_worker(gpu, ngpus_per_node, cfg, args):
         args.database_path, pair_probability_file, pair_path, args.threshold
     )
     print("update_database_path", update_database_path)
-    # colmap reconstruction with doppelgangers classifier
     print("colmap reconstruction with doppelgangers classifier")
     doppelgangers_result_path = os.path.join(
         args.output_path, "sparse_doppelgangers_%.3f" % args.threshold
