@@ -180,7 +180,8 @@ def main_worker(gpu, ngpus_per_node, cfg, args):
     loftr_matches_path = os.path.join(args.output_path, "loftr_match")
     os.makedirs(loftr_matches_path, exist_ok=True)
     pair_path = create_image_pair_list(args.database_path, args.output_path)
-    save_loftr_matches(args.input_image_path, pair_path, args.output_path)
+    if not args.skip_feature_matching:
+        save_loftr_matches(args.input_image_path, pair_path, args.output_path)
 
     # edit config file with corresponding data path
     cfg.data.image_dir = args.input_image_path
@@ -191,13 +192,16 @@ def main_worker(gpu, ngpus_per_node, cfg, args):
 
     # Running Doppelgangers classifier model on image pairs
     print("Running Doppelgangers classifier model on image pairs")
-    doppelgangers_classifier(gpu, ngpus_per_node, cfg, args)
+
+    pair_probability_file = os.path.join(args.output_path, "pair_probability_list.npy")
+    
+    if not args.skip_feature_matching:
+        doppelgangers_classifier(gpu, ngpus_per_node, cfg, args)
 
     # remove all the pairs with a probability lower than the threshold
     print(
         "remove all the pairs with a probability lower than the threshold in database"
     )
-    pair_probability_file = os.path.join(args.output_path, "pair_probability_list.npy")
     update_database_path = remove_doppelgangers(
         args.database_path, pair_probability_file, pair_path, args.threshold
     )
